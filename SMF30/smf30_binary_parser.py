@@ -307,6 +307,17 @@ class SMFBinaryParser:
             if data[8] == 30:
                 print(f"✓ Detected SMF Type 30 at standard offset 8")
         
+        # Detect format: RDW or non-RDW
+        has_rdw = True
+        if len(data) > 4:
+            first_byte = data[0]
+            # If first byte is record type (1-255), likely no RDW
+            if first_byte == 30 or first_byte == 0x1E:
+                has_rdw = False
+                print("\nDetected non-RDW format (record type at offset 0)")
+            else:
+                print("\nDetected RDW format (standard)")
+        
         offset = 0
         record_count = 0
         type30_count = 0
@@ -314,21 +325,33 @@ class SMFBinaryParser:
         record_types_found = {}  # Track all record types in the file
         
         while offset < len(data) - 4:
-            # Read RDW length
-            if offset + 4 > len(data):
-                break
+            # Read record length
+            if has_rdw:
+                if offset + 4 > len(data):
+                    break
+                rdw_length = struct.unpack('>H', data[offset:offset+2])[0]
                 
-            rdw_length = struct.unpack('>H', data[offset:offset+2])[0]
-            
-            # Skip invalid records
-            if rdw_length == 0 or rdw_length > len(data) - offset:
-                offset += 4
-                continue
+                # Skip invalid records
+                if rdw_length == 0 or rdw_length > len(data) - offset:
+                    offset += 4
+                    continue
+                record_start = offset + 4  # Skip RDW
+            else:
+                # Non-RDW: need to find record length differently
+                # Search for next Type 30 marker to determine length
+                record_start = offset
+                next_record = offset + 1
+                while next_record < len(data) and data[next_record] != 30:
+                    next_record += 1
+                rdw_length = next_record - offset
+                if rdw_length > 1000:  # Sanity check
+                    rdw_length = 100  # Default size
             
             # Check if this is a Type 30 record - try multiple offsets
             if offset + 20 < len(data):
                 # Try different possible positions for record type
-                possible_offsets = [8, 9, 10, 11, 12]
+                # z/OS formats: offset 0 (no RDW), offset 4 (after RDW), offset 8 (standard)
+                possible_offsets = [0, 4, 8, 9, 10, 11, 12]
                 record_type = None
                 actual_offset = None
                 
@@ -339,7 +362,13 @@ class SMFBinaryParser:
                         if record_count == 0:
                             print(f"  Offset {offset+test_offset}: value={test_val} (0x{test_val:02x})")
                         
-                        # Use first reasonable record type we find
+                        # Look specifically for Type 30 (0x1E) first
+                        if test_val == 30 or test_val == 0x1E:
+                            record_type = 30
+                            actual_offset = test_offset
+                            break
+                        
+                        # Otherwise use first reasonable record type we find
                         if record_type is None and 1 <= test_val <= 255:
                             record_type = test_val
                             actual_offset = test_offset
@@ -359,7 +388,12 @@ class SMFBinaryParser:
                     
                     if header:
                         # Try multiple possible subtype locations for z/OS 3.1 compatibility
-                        subtype_candidates = [offset+18, offset+21, offset+22, offset+23]
+                        # Adjust for RDW vs non-RDW format
+                        if has_rdw:
+                            subtype_candidates = [offset+18, offset+21, offset+22, offset+23]
+                        else:
+                            # Non-RDW: subtype is right after record type
+                            subtype_candidates = [offset+1, offset+2, offset+3, offset+14, offset+17, offset+18]
                         subtype = None
                         subtype_pos = None
                         
