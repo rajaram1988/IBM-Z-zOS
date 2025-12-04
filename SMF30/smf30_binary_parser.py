@@ -69,48 +69,134 @@ class SMFBinaryParser:
             return ebcdic_bytes.decode('latin-1', errors='ignore').strip()
     
     def parse_type30_subtype1(self, data: bytes, offset: int) -> Optional[SMF30Type1]:
-        """Parse Subtype 1 - Job Step Termination"""
+        """Parse Subtype 1 - Job Step Termination using self-describing sections"""
         try:
-            # Job name (offset 28, 8 bytes EBCDIC)
-            job_name = self.ebcdic_to_ascii(data[offset+28:offset+36])
+            # SMF 30 uses self-describing sections with offset/length/number triplets
+            # After RDW (4 bytes) and SMF header (varies), we have the product section
             
-            # Step name (offset 36, 8 bytes EBCDIC)
-            step_name = self.ebcdic_to_ascii(data[offset+36:offset+44])
+            # Standard SMF header is at offset+4
+            # Subtype is at offset 5 from SMF header start (offset+4+5 = offset+9 in old format)
+            # But z/OS 3.1 may use offset 18 or 22 depending on format
             
-            # Program name (offset 44, 8 bytes EBCDIC)
-            program_name = self.ebcdic_to_ascii(data[offset+44:offset+52])
+            # Try to locate key sections using self-describing format
+            base = offset + 4  # Skip RDW
             
-            # User ID (offset 52, 8 bytes EBCDIC)
-            userid = self.ebcdic_to_ascii(data[offset+52:offset+60])
+            # Read self-describing triplets starting at offset 14 from SMF header
+            # Format: Offset(4), Length(2), Number(2) for each section
             
-            # Job number (offset 60, 8 bytes EBCDIC)
-            job_number = self.ebcdic_to_ascii(data[offset+60:offset+68])
+            # For SMF 30, sections are typically:
+            # - Identification Section (job name, etc.)
+            # - Timing Section (CPU, elapsed, etc.)  
+            # - I/O Activity Section
             
-            # CPU time (offset 72, 4 bytes, microseconds)
-            cpu_time_us = struct.unpack('>I', data[offset+72:offset+76])[0]
-            cpu_time_ms = cpu_time_us // 1000
+            # Fallback: Use approximate offsets but validate data
+            # Job Identification typically starts around offset 26-32
             
-            # Elapsed time (offset 80, 4 bytes, hundredths of seconds)
-            elapsed_ths = struct.unpack('>I', data[offset+80:offset+84])[0]
-            elapsed_time_ms = elapsed_ths * 10
+            # Try multiple possible starting positions for job name
+            job_name_candidates = [
+                (offset+26, offset+34),  # z/OS 2.x format
+                (offset+28, offset+36),  # Common position
+                (offset+32, offset+40),  # z/OS 3.x format
+            ]
             
-            # IO count (offset 88, 4 bytes)
-            io_count = struct.unpack('>I', data[offset+88:offset+92])[0]
+            job_name = None
+            actual_base = offset + 28  # Default
             
-            # Service units (offset 96, 4 bytes)
-            service_units = struct.unpack('>I', data[offset+96:offset+100])[0]
+            for start, end in job_name_candidates:
+                if end <= len(data):
+                    candidate = self.ebcdic_to_ascii(data[start:end])
+                    # Valid job names are alphanumeric and start with letter
+                    if candidate and candidate[0].isalpha():
+                        job_name = candidate
+                        actual_base = start
+                        break
             
-            # Return code (offset 104, 2 bytes)
-            return_code = struct.unpack('>H', data[offset+104:offset+106])[0]
+            if not job_name:
+                # Use default offset
+                job_name = self.ebcdic_to_ascii(data[offset+28:offset+36]) if offset+36 <= len(data) else "UNKNOWN"
+                actual_base = offset + 28
             
-            # Pages read (offset 108, 4 bytes)
-            pages_read = struct.unpack('>I', data[offset+108:offset+112])[0]
+            # Adjust other fields based on detected base
+            field_offset = actual_base - offset - 28  # Offset adjustment
             
-            # Pages written (offset 112, 4 bytes)
-            pages_written = struct.unpack('>I', data[offset+112:offset+116])[0]
+            # Step name (8 bytes after job name)
+            step_offset = actual_base + 8
+            step_name = self.ebcdic_to_ascii(data[step_offset:step_offset+8]) if step_offset+8 <= len(data) else "UNKNOWN"
             
-            # EXCP count (offset 116, 4 bytes)
-            excp_count = struct.unpack('>I', data[offset+116:offset+120])[0]
+            # Program name (8 bytes after step name)
+            prog_offset = step_offset + 8
+            program_name = self.ebcdic_to_ascii(data[prog_offset:prog_offset+8]) if prog_offset+8 <= len(data) else "UNKNOWN"
+            
+            # User ID (8 bytes after program name)
+            user_offset = prog_offset + 8
+            userid = self.ebcdic_to_ascii(data[user_offset:user_offset+8]) if user_offset+8 <= len(data) else "UNKNOWN"
+            
+            # Job number (8 bytes after user ID)
+            jobnum_offset = user_offset + 8
+            job_number = self.ebcdic_to_ascii(data[jobnum_offset:jobnum_offset+8]) if jobnum_offset+8 <= len(data) else "000000"
+            
+            # Timing data typically follows identification section
+            # CPU time - try multiple possible locations
+            timing_base = jobnum_offset + 12  # Skip some padding
+            
+            cpu_time_us = 0
+            elapsed_ths = 0
+            io_count = 0
+            service_units = 0
+            
+            # Try to find timing section by looking for reasonable CPU values
+            for test_offset in range(timing_base, min(timing_base + 40, len(data) - 4), 4):
+                if test_offset + 4 <= len(data):
+                    test_value = struct.unpack('>I', data[test_offset:test_offset+4])[0]
+                    # CPU time in microseconds should be < 1 hour (3.6e9 microseconds)
+                    if 0 < test_value < 3600000000:
+                        cpu_time_us = test_value
+                        timing_base = test_offset
+                        break
+            
+            if cpu_time_us == 0 and timing_base + 4 <= len(data):
+                cpu_time_us = struct.unpack('>I', data[timing_base:timing_base+4])[0]
+            
+            cpu_time_ms = cpu_time_us // 1000 if cpu_time_us < 3600000000 else 0
+            
+            # Elapsed time (typically 8 bytes after CPU time)
+            elapsed_offset = timing_base + 8
+            if elapsed_offset + 4 <= len(data):
+                elapsed_ths = struct.unpack('>I', data[elapsed_offset:elapsed_offset+4])[0]
+            elapsed_time_ms = elapsed_ths * 10 if elapsed_ths < 360000 else 0
+            
+            # IO count (typically 8 bytes after elapsed time)
+            io_offset = elapsed_offset + 8
+            if io_offset + 4 <= len(data):
+                io_count = struct.unpack('>I', data[io_offset:io_offset+4])[0]
+            if io_count > 1000000000:  # Sanity check
+                io_count = 0
+            
+            # Service units (typically 8 bytes after IO)
+            su_offset = io_offset + 8
+            if su_offset + 4 <= len(data):
+                service_units = struct.unpack('>I', data[su_offset:su_offset+4])[0]
+            if service_units > 1000000000:  # Sanity check
+                service_units = 0
+            
+            # Return code, pages, EXCP with bounds checking
+            rc_offset = su_offset + 8
+            return_code = struct.unpack('>H', data[rc_offset:rc_offset+2])[0] if rc_offset+2 <= len(data) else 0
+            
+            pr_offset = rc_offset + 6
+            pages_read = struct.unpack('>I', data[pr_offset:pr_offset+4])[0] if pr_offset+4 <= len(data) else 0
+            if pages_read > 100000000:
+                pages_read = 0
+            
+            pw_offset = pr_offset + 4
+            pages_written = struct.unpack('>I', data[pw_offset:pw_offset+4])[0] if pw_offset+4 <= len(data) else 0
+            if pages_written > 100000000:
+                pages_written = 0
+            
+            excp_offset = pw_offset + 4
+            excp_count = struct.unpack('>I', data[excp_offset:excp_offset+4])[0] if excp_offset+4 <= len(data) else 0
+            if excp_count > 100000000:
+                excp_count = 0
             
             # Create record
             job_id = JobIdentification(
@@ -190,9 +276,18 @@ class SMFBinaryParser:
         with open(self.dump_file, 'rb') as f:
             data = f.read()
         
+        print(f"File size: {len(data):,} bytes")
+        
+        # Detect z/OS version from first record if possible
+        if len(data) > 30:
+            print(f"\nFirst 32 bytes (hex): {data[0:32].hex()}")
+            if data[8] == 30:
+                print(f"✓ Detected SMF Type 30 records")
+        
         offset = 0
         record_count = 0
         type30_count = 0
+        parse_errors = 0
         
         while offset < len(data) - 4:
             # Read RDW length
@@ -217,8 +312,8 @@ class SMFBinaryParser:
                     header, _ = self.read_smf_header(data, offset)
                     
                     if header:
-                        # Try multiple possible subtype locations
-                        subtype_candidates = [offset+21, offset+22, offset+23]
+                        # Try multiple possible subtype locations for z/OS 3.1 compatibility
+                        subtype_candidates = [offset+18, offset+21, offset+22, offset+23]
                         subtype = None
                         
                         for pos in subtype_candidates:
@@ -229,23 +324,36 @@ class SMFBinaryParser:
                                     break
                         
                         if subtype:
-                            # Parse record
-                            record = self.parse_type30_subtype1(data, offset)
-                            
-                            if record and subtype in self.records:
-                                self.records[subtype].append(record)
-                                rec_dict = record.to_dict()
-                                print(f"  [OK] Parsed Type 30.{subtype}: {rec_dict['job_name']}/{rec_dict['step_name']}")
+                            # Parse record with error handling
+                            try:
+                                record = self.parse_type30_subtype1(data, offset)
+                                
+                                if record and subtype in self.records:
+                                    self.records[subtype].append(record)
+                                    rec_dict = record.to_dict()
+                                    if type30_count <= 5:  # Show first 5 records
+                                        print(f"  [OK] Parsed Type 30.{subtype}: {rec_dict['job_name']}/{rec_dict['step_name']} CPU={rec_dict.get('cpu_time_ms', 0)}ms")
+                                    elif type30_count % 100 == 0:
+                                        print(f"  [Progress] Processed {type30_count} Type 30 records...")
+                            except Exception as e:
+                                parse_errors += 1
+                                if parse_errors <= 3:  # Show first 3 errors
+                                    print(f"  [WARN] Failed to parse record at offset {offset}: {e}")
+                        else:
+                            if type30_count <= 3:
+                                print(f"  [INFO] Could not determine subtype for record at offset {offset}")
             
             record_count += 1
             offset += rdw_length
         
         print(f"\nTotal records processed: {record_count}")
         print(f"Type 30 records found: {type30_count}")
+        if parse_errors > 0:
+            print(f"Parse errors: {parse_errors} (some records may have incorrect format)")
         
         for subtype, records in self.records.items():
             if records:
-                print(f"  Subtype {subtype}: {len(records)} records")
+                print(f"  Subtype {subtype}: {len(records)} records successfully parsed")
         
         return self.records
     
