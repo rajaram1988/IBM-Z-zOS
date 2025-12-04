@@ -301,6 +301,7 @@ class SMFBinaryParser:
         record_count = 0
         type30_count = 0
         parse_errors = 0
+        record_types_found = {}  # Track all record types in the file
         
         while offset < len(data) - 4:
             # Read RDW length
@@ -317,6 +318,9 @@ class SMFBinaryParser:
             # Check if this is a Type 30 record
             if offset + 8 < len(data):
                 record_type = data[offset+8]
+                
+                # Track what record types we're seeing
+                record_types_found[record_type] = record_types_found.get(record_type, 0) + 1
                 
                 if record_type == 30:
                     type30_count += 1
@@ -382,8 +386,16 @@ class SMFBinaryParser:
         
         print(f"\nTotal records processed: {record_count}")
         print(f"Type 30 records found: {type30_count}")
+        
+        # Show what record types were actually found
+        if record_types_found:
+            print(f"\nRecord types found in dump file:")
+            for rec_type in sorted(record_types_found.keys()):
+                count = record_types_found[rec_type]
+                print(f"  Type {rec_type:3d}: {count:4d} records")
+        
         if parse_errors > 0:
-            print(f"Parse errors: {parse_errors} (some records may have incorrect format)")
+            print(f"\nParse errors: {parse_errors} (some records may have incorrect format)")
         
         for subtype, records in self.records.items():
             if records:
