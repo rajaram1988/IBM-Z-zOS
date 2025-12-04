@@ -1,7 +1,9 @@
 """
 SMF Type 110 Record Structures - CICS Statistics Records
 SMF Type 110 provides CICS statistics for transactions, files, programs, and resources
-Common subtypes: 1=Transaction, 2=File, 3=Program, 4=Terminal, 5=Storage
+Subtypes: 1=Transaction, 2=File, 3=Program, 4=Terminal, 5=Storage, 6=Dispatcher,
+7=Loader, 8=Temp Storage, 9=Transient Data, 10=Journal, 11=DB Control, 
+12=MQ Interface, 13=Web Services, 14=ISC, 15=Coupling Facility
 """
 
 from dataclasses import dataclass, field
@@ -506,3 +508,518 @@ class SMF110SampleGenerator:
             )
             records.append(rec)
         return records
+
+# ============ Subtype 6: Dispatcher Statistics ============
+@dataclass
+class SMF110Type6:
+    """Subtype 6 - CICS Dispatcher Statistics"""
+    header: SMF110Header = field(default_factory=SMF110Header)
+    identification: CICSIdentification = field(default_factory=CICSIdentification)
+    
+    # Task metrics
+    tasks_attached: int = 0
+    tasks_ended: int = 0
+    tasks_suspended: int = 0
+    tasks_resumed: int = 0
+    
+    # CPU metrics
+    total_cpu_time: float = 0.0  # milliseconds
+    user_cpu_time: float = 0.0
+    system_cpu_time: float = 0.0
+    
+    # Wait metrics
+    total_wait_time: float = 0.0
+    enqueue_waits: int = 0
+    file_waits: int = 0
+    dispatch_waits: int = 0
+    
+    # TCB metrics (Task Control Block)
+    qr_mode_time: float = 0.0  # Quasi-reentrant
+    l8_mode_time: float = 0.0  # Language Environment
+    j8_mode_time: float = 0.0  # Java
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            **self.header.to_dict(),
+            **self.identification.to_dict(),
+            'subtype': 6,
+            'subtype_name': 'Dispatcher Statistics',
+            'tasks_attached': self.tasks_attached,
+            'tasks_ended': self.tasks_ended,
+            'tasks_suspended': self.tasks_suspended,
+            'tasks_resumed': self.tasks_resumed,
+            'total_cpu_time_ms': round(self.total_cpu_time, 3),
+            'user_cpu_time_ms': round(self.user_cpu_time, 3),
+            'system_cpu_time_ms': round(self.system_cpu_time, 3),
+            'total_wait_time_ms': round(self.total_wait_time, 3),
+            'enqueue_waits': self.enqueue_waits,
+            'file_waits': self.file_waits,
+            'dispatch_waits': self.dispatch_waits,
+            'qr_mode_time_ms': round(self.qr_mode_time, 3),
+            'l8_mode_time_ms': round(self.l8_mode_time, 3),
+            'j8_mode_time_ms': round(self.j8_mode_time, 3),
+        }
+
+# ============ Subtype 7: Loader Statistics ============
+@dataclass
+class SMF110Type7:
+    """Subtype 7 - CICS Loader Statistics"""
+    header: SMF110Header = field(default_factory=SMF110Header)
+    identification: CICSIdentification = field(default_factory=CICSIdentification)
+    
+    # Load metrics
+    program_loads: int = 0
+    map_loads: int = 0
+    table_loads: int = 0
+    
+    # Library metrics
+    library_searches: int = 0
+    library_hits: int = 0
+    library_misses: int = 0
+    
+    # Performance
+    avg_load_time: float = 0.0  # milliseconds
+    max_load_time: float = 0.0
+    
+    # Errors
+    load_failures: int = 0
+    pgmiderr_count: int = 0  # Program not found
+    
+    def to_dict(self) -> Dict[str, Any]:
+        hit_ratio = 0.0
+        if self.library_searches > 0:
+            hit_ratio = (self.library_hits / self.library_searches) * 100
+            
+        return {
+            **self.header.to_dict(),
+            **self.identification.to_dict(),
+            'subtype': 7,
+            'subtype_name': 'Loader Statistics',
+            'program_loads': self.program_loads,
+            'map_loads': self.map_loads,
+            'table_loads': self.table_loads,
+            'library_searches': self.library_searches,
+            'library_hits': self.library_hits,
+            'library_misses': self.library_misses,
+            'library_hit_ratio_pct': round(hit_ratio, 2),
+            'avg_load_time_ms': round(self.avg_load_time, 3),
+            'max_load_time_ms': round(self.max_load_time, 3),
+            'load_failures': self.load_failures,
+            'pgmiderr_count': self.pgmiderr_count,
+        }
+
+# ============ Subtype 8: Temporary Storage Statistics ============
+@dataclass
+class SMF110Type8:
+    """Subtype 8 - CICS Temporary Storage Statistics"""
+    header: SMF110Header = field(default_factory=SMF110Header)
+    identification: CICSIdentification = field(default_factory=CICSIdentification)
+    
+    # Queue operations
+    queues_created: int = 0
+    queues_deleted: int = 0
+    items_written: int = 0
+    items_read: int = 0
+    items_deleted: int = 0
+    
+    # Storage metrics
+    main_storage_queues: int = 0
+    aux_storage_queues: int = 0
+    total_items: int = 0
+    avg_item_size: int = 0  # bytes
+    
+    # Performance
+    avg_write_time: float = 0.0  # milliseconds
+    avg_read_time: float = 0.0
+    
+    # Errors
+    nospace_errors: int = 0
+    ioerr_count: int = 0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            **self.header.to_dict(),
+            **self.identification.to_dict(),
+            'subtype': 8,
+            'subtype_name': 'Temporary Storage Statistics',
+            'queues_created': self.queues_created,
+            'queues_deleted': self.queues_deleted,
+            'items_written': self.items_written,
+            'items_read': self.items_read,
+            'items_deleted': self.items_deleted,
+            'main_storage_queues': self.main_storage_queues,
+            'aux_storage_queues': self.aux_storage_queues,
+            'total_items': self.total_items,
+            'avg_item_size_bytes': self.avg_item_size,
+            'avg_write_time_ms': round(self.avg_write_time, 3),
+            'avg_read_time_ms': round(self.avg_read_time, 3),
+            'nospace_errors': self.nospace_errors,
+            'ioerr_count': self.ioerr_count,
+        }
+
+# ============ Subtype 9: Transient Data Statistics ============
+@dataclass
+class SMF110Type9:
+    """Subtype 9 - CICS Transient Data Statistics"""
+    header: SMF110Header = field(default_factory=SMF110Header)
+    identification: CICSIdentification = field(default_factory=CICSIdentification)
+    
+    # Queue operations
+    intrapartition_reads: int = 0
+    intrapartition_writes: int = 0
+    extrapartition_reads: int = 0
+    extrapartition_writes: int = 0
+    
+    # Queue metrics
+    queues_triggered: int = 0
+    trigger_level_reached: int = 0
+    
+    # Performance
+    avg_write_time: float = 0.0  # milliseconds
+    avg_read_time: float = 0.0
+    
+    # Errors
+    qiderr_count: int = 0  # Queue not found
+    ioerr_count: int = 0
+    nospace_errors: int = 0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            **self.header.to_dict(),
+            **self.identification.to_dict(),
+            'subtype': 9,
+            'subtype_name': 'Transient Data Statistics',
+            'intrapartition_reads': self.intrapartition_reads,
+            'intrapartition_writes': self.intrapartition_writes,
+            'extrapartition_reads': self.extrapartition_reads,
+            'extrapartition_writes': self.extrapartition_writes,
+            'queues_triggered': self.queues_triggered,
+            'trigger_level_reached': self.trigger_level_reached,
+            'avg_write_time_ms': round(self.avg_write_time, 3),
+            'avg_read_time_ms': round(self.avg_read_time, 3),
+            'qiderr_count': self.qiderr_count,
+            'ioerr_count': self.ioerr_count,
+            'nospace_errors': self.nospace_errors,
+        }
+
+# ============ Subtype 10: Journal Control Statistics ============
+@dataclass
+class SMF110Type10:
+    """Subtype 10 - CICS Journal Control Statistics"""
+    header: SMF110Header = field(default_factory=SMF110Header)
+    identification: CICSIdentification = field(default_factory=CICSIdentification)
+    
+    # Journal identification
+    journal_name: str = "DFHJ01"
+    journal_type: str = "SYSTEM"  # SYSTEM, USER, AUTO
+    
+    # Write metrics
+    records_written: int = 0
+    bytes_written: int = 0
+    buffer_writes: int = 0
+    
+    # Performance
+    avg_write_time: float = 0.0  # milliseconds
+    max_write_time: float = 0.0
+    waits_for_buffer: int = 0
+    
+    # Errors
+    ioerr_count: int = 0
+    jiderr_count: int = 0  # Journal not found
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            **self.header.to_dict(),
+            **self.identification.to_dict(),
+            'subtype': 10,
+            'subtype_name': 'Journal Control Statistics',
+            'journal_name': self.journal_name,
+            'journal_type': self.journal_type,
+            'records_written': self.records_written,
+            'bytes_written': self.bytes_written,
+            'buffer_writes': self.buffer_writes,
+            'avg_write_time_ms': round(self.avg_write_time, 3),
+            'max_write_time_ms': round(self.max_write_time, 3),
+            'waits_for_buffer': self.waits_for_buffer,
+            'ioerr_count': self.ioerr_count,
+            'jiderr_count': self.jiderr_count,
+        }
+
+# ============ Subtype 11: Database Control Statistics ============
+@dataclass
+class SMF110Type11:
+    """Subtype 11 - CICS Database Control Statistics (DB2/DL/I)"""
+    header: SMF110Header = field(default_factory=SMF110Header)
+    identification: CICSIdentification = field(default_factory=CICSIdentification)
+    
+    # Database type
+    db_type: str = "DB2"  # DB2, DLI, IMS
+    db_name: str = "DB2CONN"
+    
+    # Request metrics
+    sql_requests: int = 0
+    dli_calls: int = 0
+    prepare_count: int = 0
+    commit_count: int = 0
+    rollback_count: int = 0
+    
+    # Performance
+    avg_response_time: float = 0.0  # milliseconds
+    max_response_time: float = 0.0
+    total_cpu_time: float = 0.0
+    
+    # Thread/Connection metrics
+    threads_created: int = 0
+    threads_reused: int = 0
+    max_concurrent_threads: int = 0
+    
+    # Errors
+    deadlocks: int = 0
+    timeouts: int = 0
+    sql_errors: int = 0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            **self.header.to_dict(),
+            **self.identification.to_dict(),
+            'subtype': 11,
+            'subtype_name': 'Database Control Statistics',
+            'db_type': self.db_type,
+            'db_name': self.db_name,
+            'sql_requests': self.sql_requests,
+            'dli_calls': self.dli_calls,
+            'prepare_count': self.prepare_count,
+            'commit_count': self.commit_count,
+            'rollback_count': self.rollback_count,
+            'avg_response_time_ms': round(self.avg_response_time, 3),
+            'max_response_time_ms': round(self.max_response_time, 3),
+            'total_cpu_time_ms': round(self.total_cpu_time, 3),
+            'threads_created': self.threads_created,
+            'threads_reused': self.threads_reused,
+            'max_concurrent_threads': self.max_concurrent_threads,
+            'deadlocks': self.deadlocks,
+            'timeouts': self.timeouts,
+            'sql_errors': self.sql_errors,
+        }
+
+# ============ Subtype 12: MQ Interface Statistics ============
+@dataclass
+class SMF110Type12:
+    """Subtype 12 - CICS MQ Interface Statistics"""
+    header: SMF110Header = field(default_factory=SMF110Header)
+    identification: CICSIdentification = field(default_factory=CICSIdentification)
+    
+    # Queue manager
+    qmgr_name: str = "QMGR1"
+    connection_name: str = "MQCONN1"
+    
+    # Message operations
+    messages_put: int = 0
+    messages_get: int = 0
+    messages_browsed: int = 0
+    
+    # Queue operations
+    queue_opens: int = 0
+    queue_closes: int = 0
+    
+    # Performance
+    avg_put_time: float = 0.0  # milliseconds
+    avg_get_time: float = 0.0
+    total_bytes_put: int = 0
+    total_bytes_get: int = 0
+    
+    # Sync points
+    commits: int = 0
+    rollbacks: int = 0
+    
+    # Errors
+    connection_errors: int = 0
+    queue_errors: int = 0
+    auth_errors: int = 0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            **self.header.to_dict(),
+            **self.identification.to_dict(),
+            'subtype': 12,
+            'subtype_name': 'MQ Interface Statistics',
+            'qmgr_name': self.qmgr_name,
+            'connection_name': self.connection_name,
+            'messages_put': self.messages_put,
+            'messages_get': self.messages_get,
+            'messages_browsed': self.messages_browsed,
+            'queue_opens': self.queue_opens,
+            'queue_closes': self.queue_closes,
+            'avg_put_time_ms': round(self.avg_put_time, 3),
+            'avg_get_time_ms': round(self.avg_get_time, 3),
+            'total_bytes_put': self.total_bytes_put,
+            'total_bytes_get': self.total_bytes_get,
+            'commits': self.commits,
+            'rollbacks': self.rollbacks,
+            'connection_errors': self.connection_errors,
+            'queue_errors': self.queue_errors,
+            'auth_errors': self.auth_errors,
+        }
+
+# ============ Subtype 13: Web Services Statistics ============
+@dataclass
+class SMF110Type13:
+    """Subtype 13 - CICS Web Services Statistics"""
+    header: SMF110Header = field(default_factory=SMF110Header)
+    identification: CICSIdentification = field(default_factory=CICSIdentification)
+    
+    # Service identification
+    service_name: str = "WEBSERV1"
+    operation_name: str = "getCustomer"
+    
+    # Request metrics
+    requests_received: int = 0
+    responses_sent: int = 0
+    soap_requests: int = 0
+    rest_requests: int = 0
+    
+    # Performance
+    avg_response_time: float = 0.0  # milliseconds
+    max_response_time: float = 0.0
+    avg_request_size: int = 0  # bytes
+    avg_response_size: int = 0
+    
+    # Status codes
+    http_200_count: int = 0  # OK
+    http_400_count: int = 0  # Bad Request
+    http_500_count: int = 0  # Server Error
+    
+    # Errors
+    timeout_errors: int = 0
+    parse_errors: int = 0
+    auth_failures: int = 0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            **self.header.to_dict(),
+            **self.identification.to_dict(),
+            'subtype': 13,
+            'subtype_name': 'Web Services Statistics',
+            'service_name': self.service_name,
+            'operation_name': self.operation_name,
+            'requests_received': self.requests_received,
+            'responses_sent': self.responses_sent,
+            'soap_requests': self.soap_requests,
+            'rest_requests': self.rest_requests,
+            'avg_response_time_ms': round(self.avg_response_time, 3),
+            'max_response_time_ms': round(self.max_response_time, 3),
+            'avg_request_size_bytes': self.avg_request_size,
+            'avg_response_size_bytes': self.avg_response_size,
+            'http_200_count': self.http_200_count,
+            'http_400_count': self.http_400_count,
+            'http_500_count': self.http_500_count,
+            'timeout_errors': self.timeout_errors,
+            'parse_errors': self.parse_errors,
+            'auth_failures': self.auth_failures,
+        }
+
+# ============ Subtype 14: ISC Statistics ============
+@dataclass
+class SMF110Type14:
+    """Subtype 14 - CICS Inter-System Communication Statistics"""
+    header: SMF110Header = field(default_factory=SMF110Header)
+    identification: CICSIdentification = field(default_factory=CICSIdentification)
+    
+    # Connection identification
+    connection_name: str = "CONN01"
+    partner_applid: str = "CICSRGN2"
+    
+    # Session metrics
+    sessions_allocated: int = 0
+    sessions_freed: int = 0
+    max_sessions: int = 0
+    
+    # Traffic metrics
+    messages_sent: int = 0
+    messages_received: int = 0
+    bytes_sent: int = 0
+    bytes_received: int = 0
+    
+    # Performance
+    avg_response_time: float = 0.0  # milliseconds
+    network_time: float = 0.0
+    
+    # Errors
+    session_errors: int = 0
+    transmission_errors: int = 0
+    timeout_errors: int = 0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            **self.header.to_dict(),
+            **self.identification.to_dict(),
+            'subtype': 14,
+            'subtype_name': 'ISC Statistics',
+            'connection_name': self.connection_name,
+            'partner_applid': self.partner_applid,
+            'sessions_allocated': self.sessions_allocated,
+            'sessions_freed': self.sessions_freed,
+            'max_sessions': self.max_sessions,
+            'messages_sent': self.messages_sent,
+            'messages_received': self.messages_received,
+            'bytes_sent': self.bytes_sent,
+            'bytes_received': self.bytes_received,
+            'avg_response_time_ms': round(self.avg_response_time, 3),
+            'network_time_ms': round(self.network_time, 3),
+            'session_errors': self.session_errors,
+            'transmission_errors': self.transmission_errors,
+            'timeout_errors': self.timeout_errors,
+        }
+
+# ============ Subtype 15: Coupling Facility Statistics ============
+@dataclass
+class SMF110Type15:
+    """Subtype 15 - CICS Coupling Facility Statistics"""
+    header: SMF110Header = field(default_factory=SMF110Header)
+    identification: CICSIdentification = field(default_factory=CICSIdentification)
+    
+    # Structure identification
+    structure_name: str = "DFHCFLS"
+    cf_name: str = "CF01"
+    
+    # Request metrics
+    read_requests: int = 0
+    write_requests: int = 0
+    delete_requests: int = 0
+    lock_requests: int = 0
+    
+    # Performance
+    avg_response_time: float = 0.0  # microseconds
+    max_response_time: float = 0.0
+    
+    # Efficiency
+    requests_avoided: int = 0  # Due to caching
+    cache_hit_ratio: float = 0.0
+    
+    # Errors
+    cf_failures: int = 0
+    timeout_errors: int = 0
+    lock_contentions: int = 0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            **self.header.to_dict(),
+            **self.identification.to_dict(),
+            'subtype': 15,
+            'subtype_name': 'Coupling Facility Statistics',
+            'structure_name': self.structure_name,
+            'cf_name': self.cf_name,
+            'read_requests': self.read_requests,
+            'write_requests': self.write_requests,
+            'delete_requests': self.delete_requests,
+            'lock_requests': self.lock_requests,
+            'avg_response_time_us': round(self.avg_response_time, 3),
+            'max_response_time_us': round(self.max_response_time, 3),
+            'requests_avoided': self.requests_avoided,
+            'cache_hit_ratio_pct': round(self.cache_hit_ratio, 2),
+            'cf_failures': self.cf_failures,
+            'timeout_errors': self.timeout_errors,
+            'lock_contentions': self.lock_contentions,
+        }
+
+# ============ Sample Data Generator ============
