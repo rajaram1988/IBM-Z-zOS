@@ -79,6 +79,8 @@ def run_full_pipeline_sample():
 
 def run_full_pipeline_binary(dump_file: str):
     """Run complete pipeline with binary dump file"""
+    from smf110_binary_parser import SMF110BinaryParser
+    
     print("="*70)
     print("SMF TYPE 110 CICS STATISTICS ANALYSIS - BINARY DUMP MODE")
     print("="*70)
@@ -90,12 +92,45 @@ def run_full_pipeline_binary(dump_file: str):
         return
     
     print("\n[1/3] Parsing Binary SMF 110 Dump File...")
-    print("[INFO] Binary parser not yet implemented for SMF 110")
-    print("[INFO] Using sample data instead...")
+    parser = SMF110BinaryParser(dump_file)
+    records_by_subtype = parser.parse_dump()
     
-    # TODO: Implement binary parser
-    # For now, fall back to sample data
-    run_full_pipeline_sample()
+    # Extract records by subtype
+    type1_records = records_by_subtype.get(1, [])
+    type2_records = records_by_subtype.get(2, [])
+    type3_records = records_by_subtype.get(3, [])
+    type4_records = records_by_subtype.get(4, [])
+    type5_records = records_by_subtype.get(5, [])
+    
+    total_records = sum(len(records) for records in records_by_subtype.values())
+    
+    if total_records == 0:
+        print("[WARN] No records parsed from dump file")
+        return
+    
+    print("\n[2/3] Generating CSV and JSON Reports...")
+    generator = SMF110ReportGenerator()
+    generator.generate_all_reports(
+        type1_records,
+        type2_records,
+        type3_records,
+        type4_records,
+        type5_records
+    )
+    
+    print("\n[3/3] Creating Visualizations...")
+    visualizer = SMF110Visualizer()
+    visualizer.generate_all_visualizations(
+        type1_records,
+        type2_records,
+        type3_records,
+        type4_records,
+        type5_records
+    )
+    
+    print("\n" + "="*70)
+    print("PIPELINE COMPLETED SUCCESSFULLY!")
+    print("="*70)
 
 def main():
     """Main entry point"""
