@@ -105,16 +105,25 @@ class SMFBinaryParser:
             for start, end in job_name_candidates:
                 if end <= len(data):
                     candidate = self.ebcdic_to_ascii(data[start:end])
-                    # Valid job names are alphanumeric and start with letter
-                    if candidate and candidate[0].isalpha():
+                    # Valid job names are alphanumeric (relaxed validation)
+                    if candidate and len(candidate) > 0 and (candidate[0].isalpha() or candidate[0].isdigit()):
                         job_name = candidate
                         actual_base = start
                         break
             
-            if not job_name:
-                # Use default offset
-                job_name = self.ebcdic_to_ascii(data[offset+28:offset+36]) if offset+36 <= len(data) else "UNKNOWN"
-                actual_base = offset + 28
+            if not job_name or job_name == "":
+                # Use default offset - be more lenient
+                for start, end in job_name_candidates:
+                    if end <= len(data):
+                        candidate = self.ebcdic_to_ascii(data[start:end])
+                        if candidate and len(candidate.strip()) > 0:
+                            job_name = candidate
+                            actual_base = start
+                            break
+                
+                if not job_name:
+                    job_name = self.ebcdic_to_ascii(data[offset+28:offset+36]) if offset+36 <= len(data) else "UNKNOWN"
+                    actual_base = offset + 28
             
             # Adjust other fields based on detected base
             field_offset = actual_base - offset - 28  # Offset adjustment
@@ -226,7 +235,11 @@ class SMFBinaryParser:
             return record
             
         except Exception as e:
-            print(f"Error parsing Type 30 Subtype 1: {e}")
+            import traceback
+            print(f"[ERROR] Failed to parse Type 30 Subtype 1 at offset {offset}: {e}")
+            if offset < len(data) - 50:
+                print(f"  Data sample (hex): {data[offset:offset+50].hex()}")
+            traceback.print_exc()
             return None
     
     def parse_type30_record(self, data: bytes, offset: int, header: dict) -> Optional[object]:
@@ -315,30 +328,51 @@ class SMFBinaryParser:
                         # Try multiple possible subtype locations for z/OS 3.1 compatibility
                         subtype_candidates = [offset+18, offset+21, offset+22, offset+23]
                         subtype = None
+                        subtype_pos = None
+                        
+                        # Debug: show what we find at each position for first few records
+                        if type30_count <= 3:
+                            print(f"  [DEBUG] Record at offset {offset}, checking subtype at positions:")
+                            for pos in subtype_candidates:
+                                if pos < len(data):
+                                    val = data[pos]
+                                    print(f"    Offset {pos}: value={val} (0x{val:02x})")
                         
                         for pos in subtype_candidates:
                             if pos < len(data):
                                 candidate = data[pos]
                                 if 1 <= candidate <= 5:  # Valid subtypes
                                     subtype = candidate
+                                    subtype_pos = pos
                                     break
+                        
+                        if type30_count <= 3 and subtype:
+                            print(f"  [DEBUG] Selected subtype {subtype} from offset {subtype_pos}")
                         
                         if subtype:
                             # Parse record with error handling
                             try:
                                 record = self.parse_type30_subtype1(data, offset)
                                 
-                                if record and subtype in self.records:
-                                    self.records[subtype].append(record)
-                                    rec_dict = record.to_dict()
-                                    if type30_count <= 5:  # Show first 5 records
-                                        print(f"  [OK] Parsed Type 30.{subtype}: {rec_dict['job_name']}/{rec_dict['step_name']} CPU={rec_dict.get('cpu_time_ms', 0)}ms")
-                                    elif type30_count % 100 == 0:
-                                        print(f"  [Progress] Processed {type30_count} Type 30 records...")
+                                if record:
+                                    if subtype in self.records:
+                                        self.records[subtype].append(record)
+                                        rec_dict = record.to_dict()
+                                        if type30_count <= 5:  # Show first 5 records
+                                            print(f"  [OK] Parsed Type 30.{subtype}: {rec_dict['job_name']}/{rec_dict['step_name']} CPU={rec_dict.get('cpu_time_ms', 0)}ms")
+                                        elif type30_count % 100 == 0:
+                                            print(f"  [Progress] Processed {type30_count} Type 30 records...")
+                                    else:
+                                        if type30_count <= 3:
+                                            print(f"  [WARN] Subtype {subtype} not in records dict")
+                                else:
+                                    parse_errors += 1
+                                    if parse_errors <= 5:
+                                        print(f"  [WARN] parse_type30_subtype1 returned None for record at offset {offset}")
                             except Exception as e:
                                 parse_errors += 1
                                 if parse_errors <= 3:  # Show first 3 errors
-                                    print(f"  [WARN] Failed to parse record at offset {offset}: {e}")
+                                    print(f"  [ERROR] Exception parsing record at offset {offset}: {e}")
                         else:
                             if type30_count <= 3:
                                 print(f"  [INFO] Could not determine subtype for record at offset {offset}")
