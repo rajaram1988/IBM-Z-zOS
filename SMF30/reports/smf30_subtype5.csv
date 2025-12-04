@@ -1,0 +1,4 @@
+subtype,subtype_name,timestamp,job_name,job_number,owning_userid,netstep_name,network_destination,network_protocol,bytes_transmitted,bytes_received,network_response_time_ms,cpu_time_ms,elapsed_time_ms,io_count,service_units,return_code
+5,NetStep Completion,2025-12-04T02:30:03.267877,BKPMAST,040000,OPS,NETSTEP1,ARCHIVE01,TCP/IP,328073,269810,647,1312,5722,99,933,0
+5,NetStep Completion,2025-12-04T08:30:03.267877,BKPMAST,040001,SYSTEM,NETSTEP2,ARCHIVE01,TCP/IP,434793,445536,189,3409,4598,100,227,4
+5,NetStep Completion,2025-12-04T14:30:03.267877,BATCH,040002,BATCH01,NETSTEP3,ARCHIVE01,TCP/IP,148693,710914,419,3006,5425,78,521,0

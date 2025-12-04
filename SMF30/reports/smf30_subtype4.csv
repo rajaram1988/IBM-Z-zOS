@@ -1,0 +1,5 @@
+subtype,subtype_name,timestamp,job_name,job_number,owning_userid,job_class,job_priority,scheduling_environment,accounting_code
+4,Job Initiation,2025-12-04T02:30:03.267842,PAYROL,030000,REPORTS,B,12,JES2,ACCT000
+4,Job Initiation,2025-12-04T05:30:03.267842,PAYDAY,030001,SYSTEM,B,7,JES2,ACCT001
+4,Job Initiation,2025-12-04T08:30:03.267842,RPTGEN,030002,PAYROLL,B,8,JES2,ACCT002
+4,Job Initiation,2025-12-04T11:30:03.267842,CLEANUP,030003,PAYROLL,B,6,JES2,ACCT003

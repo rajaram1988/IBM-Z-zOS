@@ -1,0 +1,5 @@
+subtype,subtype_name,timestamp,job_name,job_number,owning_userid,cpu_time_ms,elapsed_time_ms,io_count,service_units,total_steps,failed_steps,total_excp_count,total_pages_read,total_pages_written,memory_allocated_mb,memory_max_used_mb,job_class
+2,Job Termination,2025-12-04T02:30:03.267568,RPTGEN,010000,REPORTS,40096,95756,2753,4705,8,0,1732,3267,1737,64,61,A
+2,Job Termination,2025-12-04T06:30:03.267568,PAYROL,010001,ADMIN,23238,72502,2218,7410,4,0,490,5023,2316,128,126,A
+2,Job Termination,2025-12-04T10:30:03.267568,PAYROL,010002,REPORTS,14302,95910,729,5218,6,0,768,8011,3346,64,191,B
+2,Job Termination,2025-12-04T14:30:03.267568,PAYROL,010003,PAYROLL,44561,65597,1484,4933,8,1,647,6079,3267,256,52,C

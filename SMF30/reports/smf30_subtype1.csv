@@ -1,0 +1,4 @@
+subtype,subtype_name,record_type,record_length,segment_number,flags,timestamp,system_id,subsystem_id,job_name,job_number,owning_userid,job_queue_name,step_name,program_name,return_code,abnormal_termination_code,cpu_time_ms,srvclass,priority,service_units,io_count,elapsed_time_ms,pages_read,pages_written,excp_count
+1,Job Step Termination,30,0,1,0,2025-12-04T10:37:36.368531,SYSZ1,SYS1,BKPMAST,000001,BATCH01,BATCH,SORT,SORT,0,0,0,TSO,4,0,0,0,894,358,0
+1,Job Step Termination,30,0,1,0,2025-12-04T10:37:36.368908,SYSZ1,SYS1,PAYDAY,000002,ADMIN,BATCH,ARCHIVE,DB2CLI,0,0,0,TSO,4,0,0,0,1893,108,0
+1,Job Step Termination,30,0,1,0,2025-12-04T10:37:36.369202,SYSZ1,SYS1,PAYROL,000003,SYSTEM,BATCH,INIT,REXX,0,0,0,TSO,4,0,0,0,1100,486,0
