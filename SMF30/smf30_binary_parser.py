@@ -293,9 +293,19 @@ class SMFBinaryParser:
         
         # Detect z/OS version from first record if possible
         if len(data) > 30:
-            print(f"\nFirst 32 bytes (hex): {data[0:32].hex()}")
+            print(f"\nFirst 64 bytes (hex):")
+            for i in range(0, min(64, len(data)), 16):
+                hex_line = ' '.join(f'{data[i+j]:02x}' for j in range(16) if i+j < len(data))
+                print(f"  {i:04x}: {hex_line}")
+            
+            print(f"\nSearching for Type 30 indicator (0x1E = 30 decimal):")
+            for test_pos in range(0, min(40, len(data))):
+                val = data[test_pos]
+                if val == 30 or val == 0x1E:
+                    print(f"  Found 0x1E (30) at offset {test_pos}")
+            
             if data[8] == 30:
-                print(f"✓ Detected SMF Type 30 records")
+                print(f"✓ Detected SMF Type 30 at standard offset 8")
         
         offset = 0
         record_count = 0
@@ -315,12 +325,31 @@ class SMFBinaryParser:
                 offset += 4
                 continue
             
-            # Check if this is a Type 30 record
-            if offset + 8 < len(data):
-                record_type = data[offset+8]
+            # Check if this is a Type 30 record - try multiple offsets
+            if offset + 20 < len(data):
+                # Try different possible positions for record type
+                possible_offsets = [8, 9, 10, 11, 12]
+                record_type = None
+                actual_offset = None
+                
+                for test_offset in possible_offsets:
+                    if offset + test_offset < len(data):
+                        test_val = data[offset + test_offset]
+                        # Debug first record
+                        if record_count == 0:
+                            print(f"  Offset {offset+test_offset}: value={test_val} (0x{test_val:02x})")
+                        
+                        # Use first reasonable record type we find
+                        if record_type is None and 1 <= test_val <= 255:
+                            record_type = test_val
+                            actual_offset = test_offset
+                
+                if record_count == 0 and record_type:
+                    print(f"  Using record type {record_type} from offset +{actual_offset}")
                 
                 # Track what record types we're seeing
-                record_types_found[record_type] = record_types_found.get(record_type, 0) + 1
+                if record_type:
+                    record_types_found[record_type] = record_types_found.get(record_type, 0) + 1
                 
                 if record_type == 30:
                     type30_count += 1
