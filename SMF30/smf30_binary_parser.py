@@ -398,7 +398,7 @@ class SMFBinaryParser:
                         subtype_pos = None
                         
                         # Debug: show what we find at each position for first few records
-                        if type30_count <= 3:
+                        if type30_count <= 3 and False:  # Disabled debug output
                             print(f"  [DEBUG] Record at offset {offset}, checking subtype at positions:")
                             for pos in subtype_candidates:
                                 if pos < len(data):
@@ -413,7 +413,7 @@ class SMFBinaryParser:
                                     subtype_pos = pos
                                     break
                         
-                        if type30_count <= 3 and subtype:
+                        if type30_count <= 3 and subtype and False:  # Disabled debug output
                             print(f"  [DEBUG] Selected subtype {subtype} from offset {subtype_pos}")
                         
                         if subtype:
